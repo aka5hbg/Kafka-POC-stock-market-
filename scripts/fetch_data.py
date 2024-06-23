@@ -1,17 +1,17 @@
 import requests
 import pandas as pd
+import pyarrow as pa
 import pyarrow.parquet as pq
-from datetime import datetime
+import os
+import configparser
 
-# Replace 'YOUR_API_KEY' with your actual Alpha Vantage API key
-API_KEY = 'xyz'
-
-def fetch_historical_data(symbol, start_date, end_date):
+# Function to fetch historical data
+def fetch_historical_data(symbol, start_date, end_date, api_key):
     url = 'https://www.alphavantage.co/query'
     params = {
         'function': 'TIME_SERIES_DAILY',
         'symbol': symbol,
-        'apikey': API_KEY,
+        'apikey': api_key,
         'outputsize': 'full',  # 'compact' for last 100 data points, 'full' for complete dataset
         'datatype': 'json',
     }
@@ -33,14 +33,19 @@ def fetch_historical_data(symbol, start_date, end_date):
         return None
 
 if __name__ == "__main__":
-    symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'FB']  # Example symbols for Apple, Microsoft, Google, Amazon, Facebook
-    start_date = '2023-01-01'
-    end_date = '2023-06-30'
+    # Read configuration from config.ini
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    
+    api_key = config['AlphaVantage']['api_key']
+    symbols = [symbol.strip() for symbol in config['DataParameters']['symbols'].split(',')]
+    start_date = config['DataParameters']['start_date']
+    end_date = config['DataParameters']['end_date']
     
     all_data = []
     
     for symbol in symbols:
-        historical_data = fetch_historical_data(symbol, start_date, end_date)
+        historical_data = fetch_historical_data(symbol, start_date, end_date, api_key)
         
         if historical_data is not None:
             all_data.append(historical_data)
@@ -52,7 +57,17 @@ if __name__ == "__main__":
         combined_df = pd.concat(all_data)
         combined_df.reset_index(inplace=True)
         
+        # Specify the directory path (use raw string literal or escape backslashes)
+        directory = r'C:\Users\akash\Desktop\historical_stock_data_project\data\raw_data'
+        
+        # Create the directory if it does not exist
+        os.makedirs(directory, exist_ok=True)
+        
         # Write to Parquet file
         file_name = 'tech_company_stock_data.parquet'
-        pq.write_table(pa.Table.from_pandas(combined_df), file_name)
-        print(f"Data saved to {file_name} successfully.")
+        file_path = os.path.join(directory, file_name)
+        table = pa.Table.from_pandas(combined_df)
+        pq.write_table(table, file_path)
+        
+        print(f"Data saved to {file_path} successfully.")
+
